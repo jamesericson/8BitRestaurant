@@ -2,93 +2,159 @@
 var tables=[];
 var employees=[];
 
+$(document).ready(function(){
+  console.log('js & JQ');
+  init();
+});// end doc ready
+
+var init = function(){
+  updateDOM();
+
+  $('#addTable').on('click', createTable);
+  $('#addEmployee').on('click', createEmployee);
+  $(document).on('click', '.table-status', cycleStatus);
+}; // end init()
+
 var createEmployee = function(){
   console.log( 'in createEmployee' );
   // get user input
-  var employeeFirstName = document.getElementById( 'employeeFirstNameIn' ).value;
-  var employeeLastName = document.getElementById( 'employeeLastNameIn' ).value;
   // create object for employee
   var newEmployee= {
-    firstName : employeeFirstName,
-    lastName : employeeLastName
+    firstName : $( '#employeeFirstNameIn' ).val(),
+    lastName : $( '#employeeLastNameIn' ).val()
   }; // end object
-  // push into employees array
-  employees.push( newEmployee );
-  // update display
-  listEmployees();
+  // push into employees to DB
+  $.ajax({
+    type: "POST",
+    url: "/addEmployee",
+    data: newEmployee,
+    success: (function(response){
+      console.log('response back: ', response);
+      // update display
+      employees = response;
+      listEmployees();
+    }),
+    error: (function(err){
+      console.log('error from the server:', err);
+    })
+  });// end ajax
+
 } // end createEmployee
 
 var createTable = function(){
   console.log( 'in createTable' );
   // get user input
-  var tableName = document.getElementById('nameIn').value;
-  var tableCapacity = document.getElementById('capacityIn').value;
   // table object for new table
   var newTable = {
-    'name': tableName,
-    'capacity': tableCapacity,
-    'server': -1,
+    'name': $('#nameIn').val(),
+    'capacity': $('#capacityIn').val(),
     'status': 'empty'
   }
   // push new obejct into tables array
-  tables.push( newTable );
-  console.log( 'added table: ' + newTable.name );
-  // update output
-  listTables();
+  $.ajax({
+    type: "POST",
+    url: "/addTable",
+    data: newTable,
+    success: (function(response){
+      console.log('response back: ', response);
+      // update display
+      tables = response;
+      listTables();
+    }),
+    error: (function(err){
+      console.log('error from the server:', err);
+    })
+  });// end ajax
+
 } // end createTable
 
-var cycleStatus = function( index ){
-  console.log( 'in cycleStatus: ' + index );
+var cycleStatus = function( ){
+  var index = $(this).attr('name');
+  var status = $(this).text();
+  console.log( 'in cycleStatus: this tableID' + index + 'is ' + status );
   // move table status to next status
-  switch( tables[index].status ){
+  switch( status ){
     case  'empty':
-        tables[index].status = 'seated';
+        status = 'seated';
         break;
     case  'seated':
-        tables[index].status = 'served';
+        status = 'served';
         break;
     case  'served':
-        tables[index].status = 'dirty';
+        status = 'dirty';
         break;
     case  'dirty':
     default:
-      tables[index].status = 'empty';
+      status = 'empty';
   }
-  // show tables on DOM
-  listTables();
+  $(this).text(status);
+  var toSend = {
+    tableID: index,
+    status: status
+  }
+  $.ajax({
+    type: "POST",
+    url: "/changeStatus",
+    data: toSend,
+    success: (function(response){
+      console.log('back from the server', response);
+    }),
+    error: (function(err){
+      console.log('error from the server: ',err);
+    })
+  });// end ajax
+
 } // end cycleStatus
 
 var listEmployees = function(){
   console.log( 'in listEmployees', employees );
-  document.getElementById('employeesOutput').innerHTML = '<ul>';
+  var outputHTML = '<ul>';
   // loop through the tables array and display each table
   for( i=0; i< employees.length; i++ ){
-    var line = employees[i].firstName + " " + employees[i].lastName + ', id: ' + i;
+    var line = employees[i].first_name + " " + employees[i].last_name + ', id: ' + employees[i].id;
     // add line to output div
-    document.getElementById('employeesOutput').innerHTML += '<li>' + line + '</li>';
+    outputHTML += '<li>' + line + '</li>';
   }
-  document.getElementById('employeesOutput').innerHTML += '</ul>';
+  outputHTML += '</ul>';
+  $('#employeesOutput').html(outputHTML);
+
   // update tables display
   listTables();
 } // end listEmployees
 
-var listTables = function(){
+var listTables = function( ){
   console.log( "in listTables" );
-  // target our output div
-  document.getElementById('tablesOutput').innerHTML = '';
+  var outputHTML = '';
   // loop through the tables array and display each table
 
   // select to assign a server to this table
-  var selectText = '<select>';
+  var selectText= '<select>';
   for (var i = 0; i < employees.length; i++) {
-    selectText+= '<option value=' + i + '>'+ employees[i].firstName + ' ' + employees[i].lastName + '</option>';
+    selectText+= '<option value=' + i + '>'+ employees[i].first_name + ' ' + employees[i].last_name + '</option>';
   }
   selectText += '</select>';
   // display employees
   for( i=0; i< tables.length; i++ ){
     // status is a button that, when clicked runs cycleStatus for this table
-    var line = tables[i].name + " - capacity: " + tables[i].capacity + ', server: ' + selectText + ', status: <button onClick="cycleStatus(' + i + ')">' + tables[i].status + "</button>";
-    // add line to output div
-    document.getElementById('tablesOutput').innerHTML += '<p>' + line + '</p>';
-  }
+    outputHTML += "<p>" + tables[i].name + " - capacity: " + tables[i].capacity + ', server: ' + selectText +
+     ', status: <button class="table-status" name="' + tables[i].id + '">' + tables[i].status + "</button></p>";
+  } // end for
+  // add line to output div
+  $('#tablesOutput').html(outputHTML);
 } // end listTables
+
+var updateDOM = function(){
+  $.ajax({
+    type: "GET",
+    url: "/getdata",
+    success: (function(response){
+      console.log('went and got data', response);
+      tables = response.dtables;
+      employees = response.wait_staff;
+      listEmployees();
+    }),
+    error: (function(err){
+      console.log('error from the server', err);
+    })
+  });
+};
